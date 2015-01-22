@@ -13,17 +13,11 @@
       ido-max-prospects 10
       ido-show-dot-for-dired nil)
 
-;; using cookies in w3m
-(setq w3m-use-cookies t)
-
 ;; use uniquify
 (require 'uniquify)
 (setq
   uniquify-buffer-name-style 'post-forward
   uniquify-separator ":")
-
-;; tramp remote sudo
-(set-default 'tramp-default-proxies-alist (quote ((".*" "\\`root\\'" "/ssh:%h:"))))
 
 (require 'recentf)
 (recentf-mode t)
@@ -38,6 +32,7 @@
 ;; Auto revert files
 (global-auto-revert-mode 1)
 (setq global-auto-revert-non-file-buffers t)
+(setq auto-revert-verbose nil)
 
 (fset 'yes-or-no-p 'y-or-n-p)
 
@@ -59,11 +54,15 @@
         ("magit" nil nil nil
          (lambda (buf)
            (with-current-buffer buf
-             (not (eq major-mode 'magit-mode)))) nil)
-        ("ensime" nil nil nil
+             (not (eq major-mode 'magit-status-mode)))) nil)
+        ("sbt" nil nil nil
          (lambda (buf)
            (with-current-buffer buf
-             (not (string-prefix-p "*inferior-ensime" (buffer-name buf))))) nil)
+             (not (string-prefix-p "*sbt" (buffer-name buf))))) nil)
+        ("bub" nil nil nil
+         (lambda (buf)
+           (with-current-buffer buf
+             (not (string-prefix-p "*bub " (buffer-name buf))))) nil)
         ("sql" nil nil nil
          (lambda (buf)
            (with-current-buffer buf
@@ -85,9 +84,7 @@
    '("^[ .*]+\\(\\%\\)" 1 font-lock-variable-name-face)))
 
 ;; Always use subwords to to move around
-(if (fboundp 'subword-mode)
-    (subword-mode t)
-  (c-subword-mode t))
+(global-subword-mode t)
 
 (require 'dired-x)
 (add-hook 'dired-load-hook
@@ -96,21 +93,22 @@
 
 (setq ediff-window-setup-function 'ediff-setup-windows-plain)
 
-;; Create non-existent directories containing a new file before saving
-(add-hook 'before-save-hook
-          (lambda ()
-            (when buffer-file-name
-              (let ((dir (file-name-directory buffer-file-name)))
-                (when (and (not (file-exists-p dir))
-                           (y-or-n-p (format "Directory %s does not exist. Create it?" dir)))
-                  (make-directory dir t))))))
+;; Tramp Optimizations
+(setq tramp-default-method "ssh")
 
 ;; Use soft tabs
 (setq-default indent-tabs-mode nil)
 
-;; Don't make backups
-(setq make-backup-files nil)
+;; Backups
 (setq version-control nil)
+(setq backup-directory-alist
+          `((".*" . ,temporary-file-directory)))
+(setq auto-save-file-name-transforms
+      `((".*" ,temporary-file-directory t)))
+(setq create-lockfiles nil)
+
+;; search
+(setq search-upper-case t)
 
 ;; Allow to be able to select text and start typing or delete
 (delete-selection-mode t)
@@ -140,12 +138,6 @@
 
 ;; Misc Aliases
 (defalias 'qrr 'query-replace-regexp)
-(defalias 'scala 'scala-run-scala)
-(defalias 'elisp-shell 'ielm)
-(defalias 'colors 'list-colors-display)
-(defalias 'buffers 'bs-show)
-(defalias 'git 'magit-status)
-(defalias 'web 'w3m)
 
 ;; Midnight mode to clean up old buffers
 (require 'midnight)
@@ -156,52 +148,26 @@
 (if (fboundp 'mouse-wheel-mode) (mouse-wheel-mode t))
 (setq visible-bell t)
 
-(setq x-select-enable-clipboard t)
-(setq interprogram-paste-function 'x-cut-buffer-or-selection-value)
-
-(setq browse-url-browser-function 'browse-url-generic
-      browse-url-generic-program "google-chrome")
-
 ;; Protobuf files are like c
-(add-to-list 'auto-mode-alist '("Vagrantfile" . ruby-mode))
-(add-to-list 'auto-mode-alist '("Rakefile" . ruby-mode))
 (add-to-list 'auto-mode-alist '("\\.proto\\'" . c-mode))
 
 ;; auto revert logs by tail
 ;; (add-to-list 'auto-mode-alist '("\\.log\\'" . auto-revert-tail-mode))
 
-;; custom battery info
-(setq display-time-format "(%I:%M%p %A %B %d %Y)")
-(setq display-time-mail-file -1)
-(setq display-time-default-load-average nil)
+;; Save point position between sessions
+(require 'saveplace)
+(setq save-place-file (expand-file-name ".places" user-emacs-directory))
+(setq-default save-place t)
 
-(setq battery-mode-line-format " (%p%%  %B)")
-(setq battery-echo-area-format "Battery: %p%% %B")
-(setq battery-update-interval 10)
+;; ssh sudo
+(require 'tramp)
+(add-to-list 'tramp-default-proxies-alist
+             '(nil "\\`root\\'" "/ssh:%h:"))
+(add-to-list 'tramp-default-proxies-alist
+             '((regexp-quote (system-name)) nil nil))
 
-(add-hook 'window-configuration-change-hook
-          '(lambda ()
-             (setq rcirc-fill-column (- (window-width) 2))))
-
-;; viewing gists in browse-url after gisting
-(setq gist-view-gist t)
-
-;; pop-to-buffer to split horizontally rather than vertically
-(setq split-width-threshold nil)
-
-;; rcirc things
-(custom-set-faces
- '(rcirc-my-nick ((t (:foreground "#00ffff"))))
- '(rcirc-other-nick ((t (:foreground "#90ee90"))))
- '(rcirc-server ((t (:foreground "#a2b5cd"))))
- '(rcirc-server-prefix ((t (:foreground "#00bfff"))))
- '(rcirc-timestamp ((t (:foreground "#7d7d7d"))))
- '(rcirc-nick-in-message ((t (:foreground "#00ffff"))))
- '(rcirc-prompt ((t (:foreground "#00bfff")))))
-
-(add-hook 'rcirc-mode-hook 'turn-on-flyspell)
- (add-hook 'rcirc-mode-hook (lambda () (rcirc-track-minor-mode t)))
-
-(setq rcirc-notify-message "%s: %s")
+;; server
+(require 'server)
+(unless (server-running-p) (server-start))
 
 (provide 'mine-builtin)

@@ -16,18 +16,25 @@
 	)
     (kill-line)))
 
+(defun open-line-below ()
+  (interactive)
+  (end-of-line)
+  (newline)
+  (indent-for-tab-command))
+
+(defun open-line-above ()
+  (interactive)
+  (beginning-of-line)
+  (newline)
+  (forward-line -1)
+  (indent-for-tab-command))
+
 (defun open-line-and-indent ()
   (interactive)
   "Opens a line and and indents"
   (newline-and-indent)
   (previous-line)
   (indent-for-tab-command))
-
-(defun newline-and-indent-open-line-and-indent ()
-  (interactive)
-  "Newlines, indents, then opens a line and indents"
-  (newline-and-indent)
-  (open-line-and-indent))
 
 (defun indent-buffer ()
   (interactive)
@@ -75,6 +82,21 @@
          (dir (file-name-directory full-file)))
     (dired dir)
     (dired-goto-file full-file)))
+
+(defun dired-reveal-current-file ()
+  (interactive)
+  (dired-reveal (file-truename buffer-file-name)))
+
+(defun dired-mac-reveal ()
+  (interactive)
+  (ns-do-applescript
+   (format "tell application \"Finder\" to reveal {\"%s\" as POSIX file}" (expand-file-name (dired-file-name-at-point))))
+  (ns-do-applescript"tell application \"Finder\" to activate"))
+
+(defun dired-external-reveal ()
+  (interactive)
+  (case system-type
+    ('darwin (dired-mac-reveal))))
 
 (defun dired-mac-open ()
   "Invoke xdg-open on the file at point"
@@ -181,7 +203,7 @@ frames with exactly two windows."
           (if this-win-2nd (other-window 1))))))
 
 ;; source: http://steve.yegge.googlepages.com/my-dot-emacs-file
-(defun rename-file-and-buffer-safe (new-name)
+(defun rename-file-and-buffer (new-name)
   "Renames both current buffer and file it's visiting to NEW-NAME."
   (interactive "sNew name: ")
   (let ((name (buffer-name))
@@ -196,21 +218,14 @@ frames with exactly two windows."
           (set-visited-file-name new-name)
           (set-buffer-modified-p nil))))))
 
-(defun rename-file-and-buffer (new-name)
-  "Renames both current buffer and file it's visiting to NEW-NAME."
-  (interactive "sNew name: ")
-  (let ((filename (buffer-file-name)))
-    (if (not filename)
-        (message "Buffer '%s' is not visiting a file!" name)
-      (let ((new-filename (concat (file-name-directory filename) new-name)))
-        (progn
-          (rename-file filename new-filename 1)
-          (rename-buffer new-name 'unique)
-          (set-visited-file-name new-filename)
-          (set-buffer-modified-p nil))))))
-
 (defun mine-sql (product sql-user sql-password sql-server sql-database root-sql-script-dir)
-  (let* ((sql-text-buffer (find-file (concat root-sql-script-dir sql-database "_" sql-server ".sql")))
+  (let* ((today (format-time-string "%Y-%m-%d"))
+         (sql-text-buffer
+          (if (eq major-mode 'sql-mode)
+              (progn
+                (set (make-local-variable 'sql-buffer) nil)
+                (current-buffer))
+            (find-file (concat root-sql-script-dir today "_" sql-database "_" sql-server ".sql"))))
          (new-name (concat sql-user "@" sql-database "." sql-server))
          (sqli-buffer (if sql-buffer (progn (split-window) sql-buffer) (sql-product-interactive product new-name))))
     (switch-to-buffer sql-text-buffer nil t)
@@ -230,35 +245,6 @@ frames with exactly two windows."
         (kill-buffer buffer)
         (message "File '%s' successfully removed" filename)))))
 
-(defun get-eshell-create (shell-name &optional initial-command)
-  (if (eq nil (get-buffer shell-name))
-      (progn
-        (mine-eshell-create)
-        (rename-buffer shell-name)
-        (if initial-command
-            (progn
-              (insert initial-command)
-              (eshell-send-input))))
-    (switch-to-buffer shell-name))
-  (end-of-buffer))
-
-;; (require 'comint)
-;; (defcustom ssh-executable "ssh" "Where is ssh?")
-;; (defun hbase-shell-ssh-tunnel (host &optional ssh-username)
-;;   (let* ((buffer-name (format "*hbase shell %s*" host))
-;;          (buffer (get-buffer-create buffer-name))
-;;          (ssh-login (if ssh-username (format "%s@%s" ssh-username host) (host)))
-;;          (args (list "-t" ssh-login "/usr/bin/hbase shell")))
-;;     (apply 'make-comint-in-buffer buffer-name buffer ssh-executable nil args)
-;;     (switch-to-buffer buffer)))
-
-(defun hbase-shell-ssh-tunnel (host &optional ssh-username)
-  (get-eshell-create
-   (format "*hbase shell %s*" host)
-   (format "ssh -t %s \"/usr/bin/hbase shell\"" (if ssh-username
-                                                    (format "%s@%s" ssh-username host)
-                                                  host))))
-
 (defun ido-recentf-open ()
   "Use `ido-completing-read` to \\[find-file] a recent file"
   (interactive)
@@ -271,120 +257,68 @@ frames with exactly two windows."
   (delete-region (point-min) (point-max))
   (comint-send-input))
 
-(defun toggle-fullscreen (&optional f)
+(defun dired-ediff-marked-files ()
+  "Run ediff on marked ediff files."
   (interactive)
-  (let ((current-value (frame-parameter nil 'fullscreen)))
-    (set-frame-parameter nil 'fullscreen
-                         (if (equal 'fullboth current-value)
-                             (if (boundp 'old-fullscreen) old-fullscreen nil)
-                           (progn (setq old-fullscreen current-value)
-                                  'fullboth)))))
+  (set 'marked-files (dired-get-marked-files))
+  (when (= (safe-length marked-files) 2)
+    (ediff-files (nth 0 marked-files) (nth 1 marked-files)))
+  
+  (when (= (safe-length marked-files) 3)
+    (ediff3 (buffer-file-name (nth 0 marked-files))
+            (buffer-file-name (nth 1 marked-files)) 
+            (buffer-file-name (nth 2 marked-files)))))
 
-(defun clear-buffer ()
-  (interactive)
-  (delete-region (point-min) (point-max)))
+(defun mine-command-line-tool (command &optional history history-symbol)
+  (let* ((rest-of-command (read-from-minibuffer (concat command " ") (car history) nil nil history-symbol))
+         (command-with-args (append (split-string command) (split-string rest-of-command)))
+         (args (cdr command-with-args))
+         (command (car command-with-args))
+         (name (mapconcat 'identity command-with-args " "))
+         (buffer-name (concat "*" name "*"))
+         (buffer (get-buffer-create buffer-name)))
+    (switch-to-buffer buffer)
+    (apply 'make-comint-in-buffer name buffer command nil args)))
 
-(defun pingg ()
-  (interactive)
-  (ping "google.com"))
-
-(defun sudo ()
-  (interactive)
-  (find-file "/sudo:root@localhost:/"))
-
-(require 'url)
-(defun http-do (method url headers entity raw)
-  (let* ((url-request-method method)
-         (url-request-extra-headers headers)
-         (url-request-data entity))
-    (url-retrieve url 'http-handle-response)))
-
-(defun http-handle-response (status)
-  (message "Captured successfully."))
-
-;; using tramp to find/open a file as sudo
-(defvar find-file-root-prefix (if (featurep 'xemacs) "/[sudo/root@localhost]" "/sudo:root@localhost:" )
-  "*The filename prefix used to open a file with `find-file-root'.")
-(defvar find-file-root-history nil
-  "History list for files found using `find-file-root'.")
-(defvar find-file-root-hook nil
-  "Normal hook for functions to run after finding a \"root\" file.")
-(defun find-file-root ()
-  "*Open a file as the root user.
-   Prepends `find-file-root-prefix' to the selected file name so that it
-   maybe accessed via the corresponding tramp method."
-  (interactive)
-  (require 'tramp)
-  (let* ( ;; We bind the variable `file-name-history' locally so we can
-	 ;; use a separate history list for "root" files.
-	 (file-name-history find-file-root-history)
-	 (name (or buffer-file-name default-directory))
-	 (tramp (and (tramp-tramp-file-p name)
-		     (tramp-dissect-file-name name)))
-	 path dir file)
-    ;; If called from a "root" file, we need to fix up the path.
-    (when tramp
-      (setq path (tramp-file-name-localname tramp)
-	    dir (file-name-directory path)))
-    (when (setq file (read-file-name "Find file (sudo): " dir path))
-      (find-file (concat find-file-root-prefix file))
-      ;; If this all succeeded save our new history list.
-      (setq find-file-root-history file-name-history)
-      ;; allow some user customization
-      (run-hooks 'find-file-root-hook))))
-
-;; Function to compile current buffer (if it's a LESS file) to CSS, requires 'ruby-gem less'
-(defun less-compile-css ()
-  "Compile LESS to CSS"
-  (interactive)
-  (if (string-match "\.less$" (buffer-file-name))
-    (async-shell-command (concat "lessc " (buffer-file-name) " > "
-      (file-name-directory (directory-file-name (file-name-directory buffer-file-name)))
-      "css/" (file-name-sans-extension (file-name-nondirectory buffer-file-name)) ".css") nil nil))
-  (delete-other-windows))
-
-(defun scratch-text ()
-  "Get or create a text-mode scratch buffer."
-  (interactive)
-  (let ((scratch-buffer (get-buffer-create "*scratch*")))
-    (switch-to-buffer scratch-buffer)
-    (text-mode)))
-
-(defun mine-rcirc-bury-buffers ()
-  "Bury all rcirc-mode buffers."
-  (interactive)
-  (save-excursion)
+(defun mine-kill-all-buffers-of-major-mode (mode)
   (dolist (buffer (buffer-list))
     (with-current-buffer buffer
-      (if (eq major-mode 'rcirc-mode)
-          (bury-buffer buffer)))))
+      (if (eql mode major-mode)
+          (kill-buffer buffer)))))
 
-(defun mine-rcirc-next-active-buffer-bury-rcirc-buffers (arg)
-  "Switch to the next rcirc buffer with activity, burying all rcirc buffers after returning to a non-rcirc buffer.
-With prefix ARG, go to the next low priority buffer with activity."
-  (interactive "P")
-  (rcirc-next-active-buffer arg)
-  (unless (eq major-mode 'rcirc-mode)
-    (mine-rcirc-bury-buffers)))
-
-(defun mine-rcirc-shut-up ()
+(defun mine-kill-all-log-buffers ()
   (interactive)
-  (rcirc-track-minor-mode -1)
-  (remq 'rcirc-activity-string global-mode-string))
+  (dolist (buffer (buffer-list))
+    (if (string-match ".+\\.log:?" (buffer-name buffer))
+        (kill-buffer buffer))))
 
-(defun google ()
-  "Google the selected region if any, display a query prompt otherwise."
-  (interactive)
-  (browse-url
-   (concat
-    "http://www.google.com/search?ie=utf-8&oe=utf-8&q="
-    (url-hexify-string (if mark-active
-         (buffer-substring (region-beginning) (region-end))
-       (read-string "Google: "))))))
+(require 'dbus)
+(eval-after-load 'rcirc
+  '(defun-rcirc-command np (whatever)
+     "Now playing in spotify"
+     (interactive "i")
+     (let* ((metadata (dbus-get-property
+                       :session
+                       "org.mpris.MediaPlayer2.spotify"
+                       "/org/mpris/MediaPlayer2"
+                       "org.mpris.MediaPlayer2.Player"
+                       "Metadata"))
+            (artist (caaar (cdr (assoc "xesam:artist" metadata))))
+            (title (caar (cdr (assoc "xesam:title" metadata))))
+            (album (caar (cdr (assoc "xesam:album" metadata))))
+            (uri (caar (cdr (assoc "xesam:url" metadata))))
+            (uri-parts (split-string uri ":"))
+            (url (concat "http://open.spotify.com/" (cadr uri-parts) "/" (caddr uri-parts))))
+       (rcirc-send-message process target
+                           (concat "Spotify: " artist " - " title " (" album ") -- " url)))))
 
-(defun flip-table ()
-  "Flip a table"
+(defun insert-random-uuid ()
   (interactive)
-  (insert "（╯°□°）╯︵ ┻━┻"))
+  (shell-command "uuidgen | tr -d '\n' | tr '[A-Z]' '[a-z]'" t))
+
+(defun string-trim (string)
+  "Remove white spaces in beginning and ending of STRING.
+White space here is any of: space, tab, emacs newline (line feed, ASCII 10)."
+  (replace-regexp-in-string "\\`[ \t\n]*" "" (replace-regexp-in-string "[ \t\n]*\\'" "" string)))
 
 (provide 'mine-defuns)

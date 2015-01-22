@@ -1,39 +1,36 @@
 ;; move help
-;;(define-key key-translation-map [?\C-h] [?\C-?])
-;;(global-set-key (kbd "C-M-?") 'help-command)
+(define-key key-translation-map [?\C-h] [?\C-?])
+(global-set-key (kbd "C-M-?") 'help-command)
 
 ;; buffers
 (global-set-key [remap list-buffers] 'bs-show)
 (global-set-key (kbd "C-c y") 'bury-buffer)
-(global-set-key (kbd "C-x p b") 'pop-to-buffer)
-(global-set-key (kbd "C-x p f") 'find-file-other-window)
-
-;; shells
-(global-set-key (kbd "C-c m") 'mine-eshell-create)
 
 ;; frame/window
 (global-set-key (kbd "C-x 7") 'swap-windows)
-(global-set-key (kbd "C-x 8") 'toggle-window-split)
 (global-set-key (kbd "C-x 9") 'toggle-window-split)
 (global-set-key (kbd "C-M-9") 'winner-undo)
 (global-set-key (kbd "C-M-0") 'winner-redo)
+(global-set-key [f1] 'mine-toggle-fullscreen)
 
 ;; file navigation
 (global-set-key (kbd "C-x M-f") 'ido-find-file-other-window)
 (global-set-key [remap ido-find-file-read-only] 'ido-recentf-open)
 (global-set-key [remap find-tag] 'ido-find-tag)
 (global-set-key (kbd "C-x C-i") 'ido-imenu)
+(global-set-key (kbd "C-c C-j") 'dired-reveal-current-file)
+(define-key dired-mode-map (kbd "M-RET") 'dired-external-reveal)
 
-(global-set-key (kbd "C-c n") 'rename-file-and-buffer)
 (global-set-key (kbd "C-c k") 'delete-this-buffer-and-file)
 
 ;; Text Editting
 (global-set-key (kbd "C-x C-k") 'kill-region)
+(global-set-key (kbd "C-M-k") 'kill-whole-line)
 (global-set-key [remap move-beginning-of-line] 'beginning-of-line-or-back-to-indention)
 (global-set-key [remap newline] 'newline-and-indent)
 (global-set-key [remap open-line] 'open-line-and-indent)
-(global-set-key (kbd "C-j") 'newline-and-indent-open-line-and-indent)
-(global-set-key (kbd "C-M-j") 'join-line)
+(global-set-key (kbd "<C-return>") 'open-line-below)
+(global-set-key (kbd "<C-S-up>") 'move-line-up)
 (global-set-key [remap kill-line] 'kill-to-end-or-join)
 (global-set-key (kbd "C-c r") 'revert-buffer)
 (global-set-key (kbd "M-g") 'goto-line)
@@ -50,23 +47,15 @@
 
 (global-set-key (kbd "C-x M-`") 'previous-error)
 
-;; ack searching
-(global-set-key (kbd "C-c a f") 'ack)
-(global-set-key (kbd "C-c a g") 'ack-again)
+(global-set-key (kbd "C-x C-r") 'rename-file-and-buffer)
 
-;; annoying suspend
+; annoying suspend
 (global-unset-key (kbd "C-z"))
 
-;; compose new mail binding
-(global-unset-key (kbd "C-x m"))
+;; sbt-mode
+(global-set-key (kbd "C-c s r") 'sbt-run)
+(global-set-key (kbd "C-c s t") 'sbt-test)
+(global-set-key (kbd "C-c s c") 'sbt-compile)
+(global-set-key (kbd "C-c s o") 'sbt-test-only-current-test)
 
-;; sudo-find-file
-(global-set-key (kbd "C-x C-r") 'find-file-root)
-
-;; irc
-(global-set-key [remap rcirc-next-active-buffer] 'mine-rcirc-next-active-buffer-bury-rcirc-buffers)
-
-;;comments
-(global-set-key (kbd "C-x C-;") 'comment-region)
-(global-set-key (kbd "C-c C-;") 'uncomment-region)
 (provide 'mine-bindings)
