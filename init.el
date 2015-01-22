@@ -1,5 +1,19 @@
 (add-to-list 'load-path (concat user-emacs-directory "/mine"))
 
+(setenv "PATH" (concat (getenv "HOME") "/bin" ":"
+                      "/usr/local/bin" ":"
+                      "/usr/bin" ":"
+                      "/bin" ":"
+                      "/usr/sbin" ":"
+                      "/sbin" ":"))
+
+(setq exec-path (list (concat (getenv "HOME") "/bin")
+                      "/usr/local/bin"
+                      "/usr/bin"
+                      "/bin"
+                      "/usr/sbin"
+                      "/sbin"))
+(require 'mine-sbt)
 (require 'mine-builtin)
 (require 'mine-defuns)
 (require 'mine-advice)

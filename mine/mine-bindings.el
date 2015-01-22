@@ -52,4 +52,10 @@
 ; annoying suspend
 (global-unset-key (kbd "C-z"))
 
+;; sbt-mode
+(global-set-key (kbd "C-c s r") 'sbt-run)
+(global-set-key (kbd "C-c s t") 'sbt-test)
+(global-set-key (kbd "C-c s c") 'sbt-compile)
+(global-set-key (kbd "C-c s o") 'sbt-test-only-current-test)
+
 (provide 'mine-bindings)
